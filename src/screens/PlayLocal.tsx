@@ -1,5 +1,5 @@
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import React, { useEffect, useState } from 'react'
+import { Animated, BackHandler, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import React, { useEffect, useRef, useState } from 'react'
 
 
 import { RootStackParamList } from '../router/router'
@@ -8,17 +8,25 @@ import BoardTile from '../components/BoardTile'
 import  Icon  from 'react-native-vector-icons/FontAwesome5'
 import { checkBishopMove, checkCastling, checkKingMove, checkKnightMove, checkPawnMove, checkPotentialBlockMoves, checkQueenMove, checkRookMove, isInCheck } from '../backend/MoveValidation'
 import { FA5Style } from 'react-native-vector-icons/FontAwesome5'
+import PlayerCard from '../components/PlayerCard'
+import LinearGradient from 'react-native-linear-gradient'
+import ActionButton from '../components/ActionButton'
+
+
+// Responsive
+import { Dimensions} from 'react-native'
+const Width=Dimensions.get('window').width
 
 
 type HomeProps =  NativeStackScreenProps<RootStackParamList,'LocalGame'>
 
 export interface ChessBoardPiece{
   piece:string,pieceColor:string,row:number,column:number,isMoveValid?:boolean
-
 }
 
 const PlayLocal = ({navigation}:HomeProps) => {
 
+  
   let chessboard:ChessBoardPiece[][] = [
     [
       {piece:'chess-rook',pieceColor:'black',row:0,column:0,isMoveValid:false},
@@ -100,21 +108,34 @@ const PlayLocal = ({navigation}:HomeProps) => {
       {piece:'chess-knight',pieceColor:'#cacaca',row:7,column:6,isMoveValid:false},
       {piece:'chess-rook',pieceColor:'#cacaca',row:7,column:7,isMoveValid:false},
     ],
-
+    
   ]
-
+  
   const [player,setPlayer]=useState('white')
-  const [isWinner,setIsWinner]=useState("Game is ongoing")
+  const [isWinner,setIsWinner]=useState('')
   const [gameState,setGameState]=useState(chessboard)
   const [lostWhitePiece,setLostWhitePiece]=useState<ChessBoardPiece[]>([])
   const [lostBlackPiece,setLostBlackPiece]=useState<ChessBoardPiece[]>([])
   const [selectedPiece,setSelectedPiece]=useState<ChessBoardPiece>({piece:'',pieceColor:'',row:0,column:0,isMoveValid:false})
   const [isCheck,setIsCheck]=useState(false)
-
+  
   const [promotionPiece,setPromotionPiece]=useState({row:0,column:0,isPromotion:false})
-
+  
   const [isCastlingAllowed,setIsCastlingAllowed]=useState([{left:true,right:true},{left:true,right:true}])
   
+  const [screenWidth,setScreenWidth]=useState(Width)
+  useEffect(()=>{
+    
+    Dimensions.addEventListener('change', ({window:{width,height}})=>{
+      setScreenWidth(width)
+    })
+    
+    const back=BackHandler.addEventListener('hardwareBackPress',()=>{
+      navigation.navigate('Home') 
+      return true})
+      
+    },[])
+
   // Checks if the king is in check or not
   const checkKingState = async ()=>{
     setIsCheck(await isInCheck(gameState,player==='white'? '#cacaca' : 'black'))
@@ -164,7 +185,10 @@ const PlayLocal = ({navigation}:HomeProps) => {
   // Gives suggetion of the valid moves for the selected piece
   const onPieceSelected= async ({piece,pieceColor,row,column,isMoveValid}:ChessBoardPiece)=>{
     let newGameState = [...gameState];
-    
+    if(isWinner){
+      return
+    }
+
     checkKingState()
 
     newGameState.map((innerArray)=>{
@@ -344,15 +368,12 @@ const PlayLocal = ({navigation}:HomeProps) => {
   // Check if the game is over or not
   const checkIsWinner = ()=>{
     const blackKing=gameState.flatMap((innerArray) =>
-      innerArray.filter((obj) => obj.pieceColor === 'black' && obj.piece=='chess-king')
+      innerArray.filter((obj) => obj.piece=='chess-king')
     );
 
-    if(blackKing.length==0){
-      setIsWinner('Player White has won the game')
-    }else{
-      setIsWinner('Player Black has won the game')
+    if(blackKing.length==1){
+      setIsWinner(`Player ${blackKing[0].pieceColor==='black'? 'White': 'Black'} has won the game`)
     }
-    
     // console.log(player)
   }
 
@@ -369,68 +390,211 @@ const PlayLocal = ({navigation}:HomeProps) => {
     })
   }
 
+  // Player Resign
+  const resignMatch=()=>{
+    console.log('Hello')
+    if(!isWinner){
+    setIsWinner(player.charAt(0).toUpperCase()+ player.slice(1)+
+      ' forfeited \n'+ (player==='white'? 'Player Black won the match' :
+      'Player White won the match')) 
+    } 
+  }
+
+  // Reset the match
+  const resetMatch=()=>{
+    setIsWinner('')
+    setLostBlackPiece([])
+    setLostWhitePiece([])
+    setSelectedPiece({piece:'',pieceColor:'',row:0,column:0,isMoveValid:false})
+    setIsCheck(false)
+    setPromotionPiece({row:0,column:0,isPromotion:false})
+    setIsCastlingAllowed([{left:true,right:true},{left:true,right:true}])
+    setPlayer('white')
+    setGameState(chessboard)
+  }
 
   return (
-    <View style={styles.container}>
-        
-      {/* ChessBoard */}
-      <ScrollView>
-        <View style={styles.boardContainer}>
-          
-          <FlatList
-            data={gameState}
-            scrollEnabled={false}
-            renderItem={({item,index})=>(
+      <LinearGradient
+      useAngle={true}
+      angle={65}
+      colors={['#4246b4', '#141E30']}
+      style={[styles.container,{width:"100%"}]}
+      >  
 
-              <FlatList
-                data={item}
-                numColumns={8}
-                scrollEnabled={false}
-                keyExtractor={(item) => `${item.column}-${item.row}`}
-                renderItem={({item,index})=>(
+      <ScrollView showsVerticalScrollIndicator={false} >
+      {screenWidth.toFixed() > '650' ? (
+        <View style={{ flexDirection:'row-reverse' }}>
 
-                  <Pressable onPress={()=>{
-                    if(player==item.pieceColor || (item.pieceColor=='#cacaca' && player==='white')){
+          <View style={styles.boardContainer}>
+            
+            <FlatList
+              data={gameState}
+              scrollEnabled={false}
+              renderItem={({item,index})=>(
 
-                    onPieceSelected({
-                      piece:item.piece,
-                      pieceColor:item.pieceColor,
-                      row:item.row,
-                      column:item.column,
-                      isMoveValid:item.isMoveValid})
+                <FlatList
+                  data={item}
+                  numColumns={8}
+                  scrollEnabled={false}
+                  keyExtractor={(item) => `${item.column}-${item.row}`}
+                  renderItem={({item,index})=>(
 
-                    setSelectedPiece({
-                      piece:item.piece,
-                      pieceColor:item.pieceColor,
-                      row:item.row,
-                      column:item.column,
-                      isMoveValid:false
-                    }) 
-                  }
+                    <Pressable onPress={()=>{
+                      if(player==item.pieceColor || (item.pieceColor=='#cacaca' && player==='white')){
 
-                    if(item.isMoveValid){
-                      selectMove(item.row,item.column)
+                      onPieceSelected({
+                        piece:item.piece,
+                        pieceColor:item.pieceColor,
+                        row:item.row,
+                        column:item.column,
+                        isMoveValid:item.isMoveValid})
+
+                      setSelectedPiece({
+                        piece:item.piece,
+                        pieceColor:item.pieceColor,
+                        row:item.row,
+                        column:item.column,
+                        isMoveValid:false
+                      }) 
                     }
+
+                      if(item.isMoveValid){
+                        selectMove(item.row,item.column)
+                      }
+                      
+                    }}
                     
-                  }}
-                  
-                  key={`${item.column}+${item.row}+${index}`}
-                  >
-                  <BoardTile color={item.pieceColor} piece={item.piece} bgColor={(item.row+item.column)%2==0 ? '#fffdf0' :'#2e2a2adb'} isValid={item.isMoveValid} />
-                  </Pressable>
-                )}
-              />
-            )}
-          />
+                    key={`${item.column}+${item.row}+${index}`}
+                    >
+                    <BoardTile color={item.pieceColor} piece={item.piece} bgColor={(item.row+item.column)%2==0 ? '#fffdf0' :'#2e2a2adb'} isValid={item.isMoveValid} />
+                    </Pressable>
+                  )}
+                />
+              )}
+            />
 
+          </View>
+
+          <View>
+            <View style={styles.playerCardContainer}>
+              <PlayerCard name='White' />
+              {isWinner? (
+                <Text style={[styles.playerTurnText,{backgroundColor:'#1e9de6',color:'#fff',fontWeight:'bold'}]}>{isWinner}</Text>
+              ):(
+                <Text style={styles.playerTurnText}>{player.charAt(0).toUpperCase() + player.slice(1) + " 's move"}</Text>
+              )}
+              <PlayerCard name='Black' />
+            </View>
+
+            <View style={{ flex:1,alignItems:'flex-end',justifyContent:'space-between',marginHorizontal:15 }}>
+             
+              <View style={[styles.lostPieceContainer,]}>
+              {lostBlackPiece.map((item)=>(
+                <Icon name={item.piece} size={22} color={item.pieceColor} /> 
+              ))}
+              </View>
+                
+              
+              <View style={[styles.lostPieceContainer,]}>
+              {lostWhitePiece.map((item)=>(
+                <Icon name={item.piece} size={25} color={item.pieceColor} /> 
+              ))}
+              </View>
+            </View>
+            
+            <View style={styles.playerCardContainer}>
+              {/* <ActionButton actionText='Draw' icon='handshake' /> */}
+              <ActionButton actionText='Resign' icon='flag' onPress={resignMatch} />
+              <ActionButton actionText='Reset' icon='spinner' onPress={resetMatch} />
+            </View>
+          </View>
         </View>
-          <Text style={{ fontSize:20 }}> {player + "'s turn"}  </Text>
+      ) : (
+        <>
+          <View style={styles.playerCardContainer}>
+            <PlayerCard name='White' />
+            {isWinner? (
+              <Text style={[styles.playerTurnText,{backgroundColor:'#1e9de6',color:'#fff',fontWeight:'bold'}]}>{isWinner}</Text>
+            ):(
+              <Text style={styles.playerTurnText}>{player.charAt(0).toUpperCase() + player.slice(1) + " 's move"}</Text>
+            )}
+            <PlayerCard name='Black' />
+          </View>
 
+          <View style={styles.lostPieceContainer}>
+          {lostBlackPiece.map((item)=>(
+            <Icon name={item.piece} size={22} color={item.pieceColor} /> 
+          ))}
+          </View>
+
+          <View style={styles.boardContainer}>
+            
+            <FlatList
+              data={gameState}
+              scrollEnabled={false}
+              renderItem={({item,index})=>(
+
+                <FlatList
+                  data={item}
+                  numColumns={8}
+                  scrollEnabled={false}
+                  keyExtractor={(item) => `${item.column}-${item.row}`}
+                  renderItem={({item,index})=>(
+
+                    <Pressable onPress={()=>{
+                      if(player==item.pieceColor || (item.pieceColor=='#cacaca' && player==='white')){
+
+                      onPieceSelected({
+                        piece:item.piece,
+                        pieceColor:item.pieceColor,
+                        row:item.row,
+                        column:item.column,
+                        isMoveValid:item.isMoveValid})
+
+                      setSelectedPiece({
+                        piece:item.piece,
+                        pieceColor:item.pieceColor,
+                        row:item.row,
+                        column:item.column,
+                        isMoveValid:false
+                      }) 
+                    }
+
+                      if(item.isMoveValid){
+                        selectMove(item.row,item.column)
+                      }
+                      
+                    }}
+                    
+                    key={`${item.column}+${item.row}+${index}`}
+                    >
+                    <BoardTile color={item.pieceColor} piece={item.piece} bgColor={(item.row+item.column)%2==0 ? '#fffdf0' :'#2e2a2adb'} isValid={item.isMoveValid} />
+                    </Pressable>
+                  )}
+                />
+              )}
+            />
+
+          </View>
+            
+          
+          <View style={[styles.lostPieceContainer,]}>
           {lostWhitePiece.map((item)=>(
-            <Text key={item.column+item.row}>{item.piece}</Text>
-            ))}
-      </ScrollView>
+            <Icon name={item.piece} size={25} color={item.pieceColor} /> 
+          ))}
+          </View>
 
+          <View style={styles.playerCardContainer}>
+            {/* <ActionButton actionText='Draw' icon='handshake' /> */}
+            <ActionButton actionText='Resign' icon='flag' onPress={resignMatch} />
+            <ActionButton actionText='Reset' icon='spinner' onPress={resetMatch} />
+          </View>
+
+        </>
+      )}  
+        
+
+      </ScrollView>
       {/* Pawn Promotion Modal Dialog */}
       <Modal 
         visible={promotionPiece.isPromotion}
@@ -442,28 +606,28 @@ const PlayLocal = ({navigation}:HomeProps) => {
           <View style={styles.promotionContainer}>
             <Text style={styles.modalHeadingText}>Promote your pawn to any one of these</Text>
           <View style={styles.promotionPieceContainer}>
-              <Icon name={'chess-queen'} size={25} color={player!=='white'?'#cacaca' : 'black'} 
+              <Icon name={'chess-queen'} size={25} color={player!=='white'?'#fff' : 'black'} 
               onPress={()=>promotePawn({
                 piece:'chess-queen',
                 pieceColor:player!=='white'?'#cacaca' : 'black',
                 row:promotionPiece.row,
                 column:promotionPiece.column
               })}  />    
-              <Icon name={'chess-bishop'} size={25} color={player!=='white'?'#cacaca' : 'black'} 
+              <Icon name={'chess-bishop'} size={25} color={player!=='white'?'#fff' : 'black'} 
               onPress={()=>promotePawn({
                 piece:'chess-bishop',
                 pieceColor:player!=='white'?'#cacaca' : 'black',
                 row:promotionPiece.row,
                 column:promotionPiece.column
               })} />    
-              <Icon name={'chess-knight'} size={25} color={player!=='white'?'#cacaca' : 'black'} 
+              <Icon name={'chess-knight'} size={25} color={player!=='white'?'#fff' : 'black'} 
               onPress={()=>promotePawn({
                 piece:'chess-knight',
                 pieceColor:player!=='white'?'#cacaca' : 'black',
                 row:promotionPiece.row,
                 column:promotionPiece.column
               })} />    
-              <Icon name={'chess-rook'} size={25} color={player!=='white'?'#cacaca' : 'black'} 
+              <Icon name={'chess-rook'} size={25} color={player!=='white'?'#fff' : 'black'} 
               onPress={()=>promotePawn({
                 piece:'chess-rook',
                 pieceColor:player!=='white'?'#cacaca' : 'black',
@@ -474,24 +638,27 @@ const PlayLocal = ({navigation}:HomeProps) => {
           </View>
         </View>
       </Modal>
-
-    </View>
+      </LinearGradient>
+    
   )
 }
 
-export default PlayLocal
 
 const styles = StyleSheet.create({
   container:{
     flex:1,
     alignItems:'center',
     justifyContent:'center',
-    padding:10,
   },
   boardContainer:{
-    borderWidth:2.5,
-    height:358,
+    width:345,
+    marginVertical:10,
+    borderWidth:8,
+    height:350,
     borderRadius:8,
+    borderColor:'#bdbdbd61',
+    alignSelf:'center',
+    // marginHorizontal:5
   },
   modalCenteredView: {
     flex: 1,
@@ -515,14 +682,47 @@ const styles = StyleSheet.create({
     flexDirection:'column',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor:'#3c74cf',
+    backgroundColor:'#bcbdbfdf',
     borderRadius:20, 
   },
   modalHeadingText:{
     padding:12,
-    marginTop:15,
+    marginTop:20,
     alignSelf:'flex-start',
     fontSize:18,
-    fontWeight:'bold'
+    fontWeight:'bold',
+    color:'#000'
+  },
+  playerCardContainer:{
+    flex:1,
+    flexDirection:'row',
+    justifyContent:'space-between',
+    alignItems:'center',
+    marginTop:8,
+    // backgroundColor:'red'
+  },
+  playerTurnText:{
+    color:'#fff',
+    fontSize:16,
+    padding:8,
+    fontWeight:'semibold',
+    backgroundColor:'#bdbdbd61',
+    elevation:1,
+    borderRadius:15,
+    flexWrap:'wrap',
+    maxWidth:210,
+  },
+  lostPieceContainer:{
+    width:345,
+    height:50,
+    flexDirection:'row',
+    columnGap:15,
+    rowGap:2,
+    marginBottom:2,
+    paddingHorizontal:8,
+    flexWrap:'wrap',
+    alignSelf:'center'
   }
 })
+
+export default PlayLocal

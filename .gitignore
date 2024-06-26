@@ -34,6 +34,10 @@ local.properties
 *.keystore
 !debug.keystore
 
+#Firebase Credential
+app/
+google-services.json
+
 # node.js
 #
 node_modules/

@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
-import React from 'react'
+import React, { useContext } from 'react'
 
 import {createNativeStackNavigator} from '@react-navigation/native-stack'
 import Home from '../screens/Home'
@@ -7,6 +7,7 @@ import PlayLocal from '../screens/PlayLocal'
 import Login from '../screens/Login'
 import SignUp from '../screens/SignUp'
 import { NavigationContainer } from '@react-navigation/native'
+import { FirebaseAuthContext } from '../backend/Firebase/service'
 
 export type RootStackParamList={
     Home:undefined,
@@ -18,14 +19,18 @@ export type RootStackParamList={
 const Stack=createNativeStackNavigator<RootStackParamList>()
 
 const Router = () => {
+  const {auth}=useContext(FirebaseAuthContext)
+    
   return (
+    
     <NavigationContainer>
-    <Stack.Navigator initialRouteName='LocalGame'>
+    <Stack.Navigator initialRouteName='Home'>
         <Stack.Screen
             name='Home'
             component={Home}
             options={{ 
-                title:'Home'
+                title:"Home",
+                headerShown:false
              }}
         />
 
@@ -33,15 +38,18 @@ const Router = () => {
             name='LocalGame'
             component={PlayLocal}
             options={{ 
-                title:'Local Game'
+                title:'Local Game',
+                headerShown:false
              }}
         />    
 
+        
         <Stack.Screen
             name='Login'
             component={Login}
             options={{ 
-                title:'Login'
+                title:'Login',
+                headerShown:false
              }}
         />
 
@@ -49,7 +57,9 @@ const Router = () => {
             name='SignUp'
             component={SignUp}
             options={{ 
-                title:'SignUp'
+                title:'SignUp',
+                headerShown:false
+
              }}
         />    
 
