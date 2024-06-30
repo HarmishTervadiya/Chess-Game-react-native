@@ -35,7 +35,7 @@ export default InputBox
 
 const styles = StyleSheet.create({
     inputBox:{
-        width:330,
+        width:250,
         backgroundColor:'#fff',
         borderRadius:8,
         elevation:2,
@@ -45,14 +45,15 @@ const styles = StyleSheet.create({
         },
         shadowColor:'#000',
         shadowRadius:8,
-        borderWidth:1
+        borderWidth:1,
     },
     input:{
-        paddingHorizontal:15
+        paddingHorizontal:15,
+        
     },
     labelText:{
         color:'#000',
-        fontSize:16,
+        fontSize:14,
         padding:5
     },
     errText:{

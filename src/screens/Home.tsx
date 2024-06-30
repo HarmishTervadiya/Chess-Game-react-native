@@ -13,11 +13,31 @@ import HorizontalButton from '../components/HorizontalCard';
 import FirebaseAuthService, { FirebaseAuthContext } from '../backend/Firebase/service';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth'
 
+// Responsive
+import { Dimensions} from 'react-native'
+import { DBServiceContext } from '../backend/Firebase/dbService';
+import ChooseGameDialog from '../components/ChooseGameDialog';
+const Width=Dimensions.get('window').width
+
 type HomeProps =  NativeStackScreenProps<RootStackParamList,'Home'>
 
 const Home = ({navigation}:HomeProps) => {
 
+  const [screenWidth,setScreenWidth]=useState(Width)
+
   const firebase=useContext(FirebaseAuthContext)
+
+  const {database}=useContext(DBServiceContext)
+  const [gameId,setGameId]=useState(database.game?.gameUid)
+  const [isVisible,setIsVisible]=useState(false)
+
+  useEffect(()=>{
+    console.log(`GameId :: ${gameId}`)
+    if(database.playersConnected){
+        navigation.navigate('OnlineGame',{id:gameId!})
+    }
+  },[gameId])
+
   const [isLoggedIn,setIsLoggedIn]=useState(firebase.auth.user!==null)
   const logout=async ()=>{
     await firebase.auth.logoutUser()
@@ -43,6 +63,9 @@ const Home = ({navigation}:HomeProps) => {
   useEffect(()=>{
     auth().onAuthStateChanged((user)=>onAuthStateChanged(user))
     fadeIn()
+    Dimensions.addEventListener('change', ({window:{width,height}})=>{
+      setScreenWidth(width)
+  })
   },[])
 
   return (
@@ -52,12 +75,16 @@ const Home = ({navigation}:HomeProps) => {
       colors={['#4246b4', '#141E30']}
       style={styles.container}
       >
-      <ScrollView contentContainerStyle={{  }} scrollEnabled={true} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={ screenWidth.toFixed() > '560' && {flex:1, flexDirection:'row' } } scrollEnabled={true} showsVerticalScrollIndicator={false}>
         <Animated.Image source={BattleOfMinds} style={{ width:300, maxHeight:300,height:300, alignSelf:'center', opacity:fadeAnim }} />
 
+        <View style={screenWidth.toFixed() > '560' && {height:'100%', justifyContent:'center',alignSelf:'center' }}>
         <View style={styles.cardContainer}>
           <GameCard image={GameOffineImage} text='Play Local' onPress={()=>navigation.navigate('LocalGame')} />
-          <GameCard image={GameOnlineImage} text='Play Online' onPress={()=>navigation.navigate('Login')} />
+          <GameCard image={GameOnlineImage} text='Play Online' onPress={()=>{
+            {isLoggedIn ? setIsVisible(true) : 
+            navigation.navigate('Login')
+          }}} />
         </View>
 
         {isLoggedIn ? (
@@ -65,6 +92,10 @@ const Home = ({navigation}:HomeProps) => {
         ):(
           <HorizontalButton text='Login' onPress={()=>navigation.navigate('Login')} />
         )}
+
+        </View>
+
+        <ChooseGameDialog onDismiss={()=>setIsVisible(false)} onGameSelected={setGameId} isVisible={isVisible} />
       </ScrollView>
     </LinearGradient>
   )

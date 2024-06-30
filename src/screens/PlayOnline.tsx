@@ -1,13 +1,10 @@
-import { Animated, BackHandler, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import React, { useEffect, useRef, useState } from 'react'
-
-
+import { BackHandler, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import React, { useContext, useEffect,  useState } from 'react'
 import { RootStackParamList } from '../router/router'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import BoardTile from '../components/BoardTile'
 import  Icon  from 'react-native-vector-icons/FontAwesome5'
 import { checkBishopMove, checkCastling, checkKingMove, checkKnightMove, checkPawnMove, checkPotentialBlockMoves, checkQueenMove, checkRookMove, isInCheck } from '../backend/MoveValidation'
-import { FA5Style } from 'react-native-vector-icons/FontAwesome5'
 import PlayerCard from '../components/PlayerCard'
 import LinearGradient from 'react-native-linear-gradient'
 import ActionButton from '../components/ActionButton'
@@ -15,9 +12,12 @@ import ActionButton from '../components/ActionButton'
 
 // Responsive
 import { Dimensions} from 'react-native'
+import { DBServiceContext } from '../backend/Firebase/dbService'
+import { FirebaseAuthContext } from '../backend/Firebase/service'
 const Width=Dimensions.get('window').width
 
-type LocalGameProps =  NativeStackScreenProps<RootStackParamList,'LocalGame'>
+
+type PlayOnlineProps =  NativeStackScreenProps<RootStackParamList,'OnlineGame'>
 
 export interface ChessBoardPiece{
   piece:string,pieceColor:string,row:number,column:number,isMoveValid?:boolean
@@ -107,8 +107,38 @@ const chessboard:ChessBoardPiece[][] = [
   
 ]
 
-const PlayLocal = ({navigation}:LocalGameProps) => {
-  
+const PlayOnline = ({navigation,route}:PlayOnlineProps) => {
+
+  const {database}=useContext(DBServiceContext)
+  const {auth} = useContext(FirebaseAuthContext)
+  const currentPlayer= auth.user?.uid== database.game?.player1.uid? database.game?.player1 : database.game?.player2
+  const opponent= auth.user?.uid!== database.game?.player1.uid? database.game?.player1 : database.game?.player2
+
+  useEffect(()=>{
+      database.db().ref(`GameList/${route.params.id}/`)
+      .on('value',snapshot=>{
+        
+        setGameState(snapshot.child('gameState').val())
+        setPlayer(snapshot.child('turn').val())
+        if(snapshot.child('lostBlackPieces').val()!=null){
+          setLostBlackPiece(snapshot.child('lostBlackPieces').val())
+        }
+
+        if(snapshot.child('lostWhitePieces').val()!=null){
+          setLostWhitePiece(snapshot.child('lostWhitePieces').val())
+        }
+
+        if(snapshot.child('isGameOver').val()!==''){
+          setIsWinner(snapshot.child('isGameOver').val())
+          setTimeout(()=>{
+            navigation.navigate('Home')
+          },3000)  
+        }
+
+      })
+    
+  },[])
+
   const [player,setPlayer]=useState('white')
   const [isWinner,setIsWinner]=useState('')
   const [gameState,setGameState]=useState(chessboard)
@@ -133,6 +163,7 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
       return true})
       
     },[])
+
 
   // Checks if the king is in check or not
   const checkKingState = async ()=>{
@@ -191,7 +222,7 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
 
     newGameState.map((innerArray)=>{
       innerArray.map((obj)=>{
-        obj.isMoveValid=false
+        newGameState[obj.row][obj.column].isMoveValid=false
       })
     })
     
@@ -294,7 +325,7 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
   }
 
   // Updates the game state and piece position
-  const makeMove= ({piece,pieceColor,row,column,isMoveValid}:ChessBoardPiece)=>{
+  const makeMove= async ({piece,pieceColor,row,column,isMoveValid}:ChessBoardPiece)=>{
     let newGameState = [...gameState];
 
     if(piece!==''){
@@ -317,6 +348,14 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
         temp.push(lostPiece)
         setLostBlackPiece(temp)
       }
+
+      await database.addLostPieces(gameState,route.params.id,lostWhitePiece,lostBlackPiece)
+                    .then(res=>{
+                      console.log("Lost piece added",res)
+                    })
+                    .catch(res=>{
+                      console.log("Lost piece not added",res)
+                    })
     }
 
     
@@ -359,24 +398,34 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
 
     setGameState(newGameState)
     checkIsWinner()
-    setPlayer(selectedPiece.pieceColor==='#cacaca'? 'black' : 'white')
+    // setPlayer(selectedPiece.pieceColor==='#cacaca'? 'black' : 'white')
  
+    await database.updateGameState(newGameState,route.params.id,selectedPiece.pieceColor==='#cacaca'? 'black' : 'white')
+    .then(res=>{
+      console.log('PlayOnline :: Game state Updating successful', res)
+    })
+    .catch(e=>{
+      console.log('PlayOnline :: Game state Updating failed', e)
+    })
   }
 
   // Check if the game is over or not
-  const checkIsWinner = ()=>{
+  const checkIsWinner = async ()=>{
     const blackKing=gameState.flatMap((innerArray) =>
       innerArray.filter((obj) => obj.piece=='chess-king')
     );
 
+
     if(blackKing.length==1){
-      setIsWinner(`Player ${blackKing[0].pieceColor==='black'? 'White': 'Black'} has won the game`)
+    const winner=blackKing[0].pieceColor==='black'? database.game?.player1.name: database.game?.player2?.name!
+      setIsWinner(`Player ${winner} has won the game`)
+      await database.setWinner(gameState,route.params.id,'Player '+ winner + ' won the match')
     }
     // console.log(player)
   }
 
   // Promotes the pawn
-  const promotePawn=({piece,pieceColor,row,column}:ChessBoardPiece)=>{
+  const promotePawn=async ({piece,pieceColor,row,column}:ChessBoardPiece)=>{
     gameState[row][column].piece=piece
     gameState[row][column].pieceColor=pieceColor
     gameState[row][column].isMoveValid=false
@@ -386,31 +435,29 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
       column:column,
       isPromotion:false
     })
+
+    await database.updateGameState(gameState,route.params.id,pieceColor==='#cacaca'? 'black' : 'white')
+    .then(res=>{
+      console.log('PlayOnline :: Game state Updating successful', res)
+    })
+    .catch(e=>{
+      console.log('PlayOnline :: Game state Updating failed', e)
+    })
   }
 
   // Player Resign
-  const resignMatch=()=>{
+  const resignMatch=async ()=>{
     
     if(!isWinner){
-    setIsWinner(player.charAt(0).toUpperCase()+ player.slice(1)+
-      ' forfeited \n'+ (player==='white'? 'Player Black won the match' :
-      'Player White won the match')) 
+    setIsWinner(currentPlayer?.name! +
+      ' forfeited \n'+ opponent?.name + ' won the match') 
+    
+    await database.setWinner(gameState,route.params.id,currentPlayer?.name! +
+      ' forfeited \n'+ opponent?.name + ' won the match')
+
     } 
   }
 
-  // Reset the match
-  const resetMatch=()=>{
-    setIsWinner('')
-    setLostBlackPiece([])
-    setLostWhitePiece([])
-    setSelectedPiece({piece:'',pieceColor:'',row:0,column:0,isMoveValid:false})
-    setIsCheck(false)
-    setPromotionPiece({row:0,column:0,isPromotion:false})
-    setIsCastlingAllowed([{left:true,right:true},{left:true,right:true}])
-    setPlayer('white')
-    console.log(chessboard[4][1])
-    setGameState(chessboard)
-  }
 
   return (
       <LinearGradient
@@ -439,7 +486,7 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
                   renderItem={({item,index})=>(
 
                     <Pressable onPress={()=>{
-                      if(player==item.pieceColor || (item.pieceColor=='#cacaca' && player==='white')){
+                      if(currentPlayer?.color===item.pieceColor &&  player==currentPlayer?.color || (item.pieceColor=='#cacaca' && player==='white' && currentPlayer?.color==='white')){
 
                       onPieceSelected({
                         piece:item.piece,
@@ -476,13 +523,13 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
 
           <View>
             <View style={styles.playerCardContainer}>
-              <PlayerCard name='White' />
+              <PlayerCard name={currentPlayer?.name!} />
               {isWinner? (
                 <Text style={[styles.playerTurnText,{backgroundColor:'#1e9de6',color:'#fff',fontWeight:'bold'}]}>{isWinner}</Text>
               ):(
-                <Text style={styles.playerTurnText}>{player.charAt(0).toUpperCase() + player.slice(1) + " 's move"}</Text>
+                <Text style={styles.playerTurnText}>{`${player==='white'? database.game?.player1.name : database.game?.player2?.name} 's move ` }</Text>
               )}
-              <PlayerCard name='Black' />
+              <PlayerCard name={opponent?.name!} />
             </View>
 
             <View style={{ flex:1,alignItems:'flex-end',justifyContent:'space-between',marginHorizontal:15 }}>
@@ -504,20 +551,20 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
             <View style={styles.playerCardContainer}>
               {/* <ActionButton actionText='Draw' icon='handshake' /> */}
               <ActionButton actionText='Resign' icon='flag' onPress={resignMatch} />
-              <ActionButton actionText='Reset' icon='spinner' onPress={resetMatch} />
+              {/* <ActionButton actionText='Reset' icon='spinner' onPress={resetMatch} /> */}
             </View>
           </View>
         </View>
       ) : (
         <>
           <View style={styles.playerCardContainer}>
-            <PlayerCard name='White' />
+            <PlayerCard name={currentPlayer?.name!} />
             {isWinner? (
               <Text style={[styles.playerTurnText,{backgroundColor:'#1e9de6',color:'#fff',fontWeight:'bold'}]}>{isWinner}</Text>
             ):(
-              <Text style={styles.playerTurnText}>{player.charAt(0).toUpperCase() + player.slice(1) + " 's move"}</Text>
+              <Text style={styles.playerTurnText}>{(player==='white'? database.game?.player1.name : database.game?.player2?.name) + " 's move"}</Text>
             )}
-            <PlayerCard name='Black' />
+            <PlayerCard name={opponent?.name!} />
           </View>
 
           <View style={styles.lostPieceContainer}>
@@ -541,7 +588,7 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
                   renderItem={({item,index})=>(
 
                     <Pressable onPress={()=>{
-                      if(player==item.pieceColor || (item.pieceColor=='#cacaca' && player==='white')){
+                      if(currentPlayer?.color===item.pieceColor &&  player==currentPlayer?.color || (item.pieceColor==='#cacaca' && player==='white' && currentPlayer?.color==='white')){
 
                       onPieceSelected({
                         piece:item.piece,
@@ -586,7 +633,7 @@ const PlayLocal = ({navigation}:LocalGameProps) => {
           <View style={styles.playerCardContainer}>
             {/* <ActionButton actionText='Draw' icon='handshake' /> */}
             <ActionButton actionText='Resign' icon='flag' onPress={resignMatch} />
-            <ActionButton actionText='Reset' icon='spinner' onPress={resetMatch} />
+            {/* <ActionButton actionText='Reset' icon='spinner' onPress={resetMatch} /> */}
           </View>
 
         </>
@@ -724,4 +771,4 @@ const styles = StyleSheet.create({
   }
 })
 
-export default PlayLocal
+export default PlayOnline

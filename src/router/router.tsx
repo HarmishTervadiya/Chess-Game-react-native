@@ -8,12 +8,14 @@ import Login from '../screens/Login'
 import SignUp from '../screens/SignUp'
 import { NavigationContainer } from '@react-navigation/native'
 import { FirebaseAuthContext } from '../backend/Firebase/service'
+import PlayOnline from '../screens/PlayOnline'
 
 export type RootStackParamList={
     Home:undefined,
     Login:undefined,
     SignUp:undefined,
-    LocalGame:undefined
+    LocalGame:undefined,
+    OnlineGame: {id:string},
 } 
 
 const Stack=createNativeStackNavigator<RootStackParamList>()
@@ -43,6 +45,15 @@ const Router = () => {
              }}
         />    
 
+
+        <Stack.Screen
+            name='OnlineGame'
+            component={PlayOnline}
+            options={{ 
+                title:'Online Game',
+                headerShown:false
+             }}
+        />    
         
         <Stack.Screen
             name='Login'

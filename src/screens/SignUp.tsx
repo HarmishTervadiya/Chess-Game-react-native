@@ -53,7 +53,6 @@ const SignUp = ({navigation}:SignUpProps) => {
     >
     <ScrollView contentContainerStyle={screenWidth.toFixed() > '560' && { flexDirection:'row' } } scrollEnabled={true} showsVerticalScrollIndicator={false}>
       
-      <KeyboardAvoidingView>
       <Image source={BattleOfMinds} style={{ width:300, maxHeight:230,height:230, alignSelf:'center' }} />
       
       <Formik
@@ -76,7 +75,7 @@ const SignUp = ({navigation}:SignUpProps) => {
        handleSubmit,
        handleReset }) => (
         <View
-        style={{ alignSelf:'center',backgroundColor:'#fff',padding:20, borderRadius:8,marginVertical:10 }}
+        style={{ justifyContent:'center', alignSelf:'center',backgroundColor:'#fff',padding:20, borderRadius:8,marginVertical:10 }}
         >
 
         <Text style={styles.headingText}>Create a new account</Text>
@@ -107,7 +106,6 @@ const SignUp = ({navigation}:SignUpProps) => {
         </View>
      )}
     </Formik>
-    </KeyboardAvoidingView>
     </ScrollView>
   </LinearGradient>
   
@@ -125,7 +123,7 @@ const styles = StyleSheet.create({
     flexDirection:'row',
     justifyContent:'space-between',
     alignItems:'center',
-    padding:10
+    paddingVertical:10
   },
   submitButton:{
     backgroundColor:'#10b4fa',
@@ -138,7 +136,7 @@ const styles = StyleSheet.create({
     fontWeight:'bold'
   },
   registerText:{
-    fontSize:16,
+    fontSize:14,
     color:'#000',
     fontWeight:'bold',
     textDecorationColor:'#000',
