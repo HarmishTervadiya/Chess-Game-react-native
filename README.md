@@ -5,6 +5,10 @@ To Install the repo
 First Complete setup of react native :
    Follow react native docs or installation guide of Hitesh Choudhary Sir
 
-Install these packages and configure the project according to there docs
+Install the necessary packages listed in package.json and configure the project according to there docs
 
-npm i react-navigation
+Create firebase and complete setup in react native app
+
+Main Features : 
+Local Game in single mobile
+Online Game with random people using multiplayer mode
